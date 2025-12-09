@@ -1,4 +1,5 @@
-rapidjson
-main
-gprof*
-callgrind*
+.vscode
+public_cpp/main
+public_cpp/callgrind*
+public_cpp/*.out
+input/*.solution.svg
