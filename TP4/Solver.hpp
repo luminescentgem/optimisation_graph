@@ -1,74 +1,123 @@
 #pragma once
 
-#include "graph.hpp"
 #include <filesystem>
 #include <unordered_set>
 #include <unordered_map>
-#include <ilcplex/ilocplex.h>
+#include <iostream>
+#include <fstream>
+#include <utility>
+#include <string>
+#include "Graph.hpp"
+#include "SubSolver.hpp"
+#include "tools.hpp"
 
 template <class Vertex>
 using Edge = std::pair<Vertex, Vertex>;
 
+constexpr int SUB_GRAPH_MAX_SIZE = 5000;
 
 template <class Vertex>
 class Solver
 {
-
 private:
     Graph<Vertex>& g;
 
-    IloEnv env;
-    IloModel model;
-    IloCplex cplex;
-
-    std::unordered_set<Vertex> solution;
-    std::unordered_map<Vertex,IloNumVar> variables;
-    int maxtime;
+    std::vector<Vertex> vertices;
+    std::unordered_set<Vertex> independant;
 
 public:
     Solver(Graph<Vertex> &g, int maxtime)
-        : g(g), env(), model(env), maxtime(maxtime)
+        : g(g),
+          vertices(g.vertices())
     {
-        /**/ std::cout << "Creating variables" << std::endl; /**/
-        for(Vertex v : g.vertices())
-            variables[v] = IloNumVar(env, 0, 1, ILOINT);
+    }
+
+    ~Solver()
+    {
+    }
+
+    bool solve()
+    {
+        /**/ std::cout << "Solving" << std::endl; /**/
+        solve_greedy();
         
-        /**/ std::cout << "Creating constraints" << std::endl; /**/
-        for(Edge<Vertex> e : g.edges()) {
-            IloExpr expr(env);
-            expr += variables[e.first] + variables[e.second];
-            model.add(expr <= 1);
+    }
+
+    void solve_greedy()
+    {
+        std::unordered_set<Vertex> queue(vertices.begin(), vertices.end());
+        std::sort(queue.begin(), queue.end(),
+                [](Vertex& a, Vertex& b) -> int {
+                    return a.degree() - b.degree();
+                });
+        
+        while(!queue.empty()) {
+            Vertex& v = queue.front();
+
+            independant.insert(v);
+            remove_neighbors_from_queue(queue, v);
+        }
+    }
+
+    void improve()
+    {
+        Vertex randomVertex = pickRandomVertex();
+        Graph subGraph = g.subGraph(
+            g.bfs(randomVertex, SUB_GRAPH_MAX_SIZE);
+        );
+        SubSolver solver(subGraph);
+
+        trimGraph(solver);
+
+        solver.solve();
+    }
+
+    void remove_neighbors_from_queue(std::vector<Vertex>& list, Vertex& v)
+    {
+        std::erase(
+            std::remove_if(list,
+                [&v](Vertex& n) { return g.closedneighbors(v).contains(n); }
+            ),
+            list.end()
+        );
+    }
+
+    Vertex pickRandomVertex() const
+    {
+        return random_element(vertices());
+    }
+
+    void trimGraph(SubSolver& solver)
+    {
+        
+    }
+
+    void isOutsideAndIndependant(Graph& subGraph, Vertex v)
+    {
+        return !subGraph.contains(v) && independant.contains(v)
+    }
+
+    void save(std::string fn) const
+    {
+        /**/ std::cout << "Saving solution" << std::endl; /**/
+
+        if (!cplex.isPrimalFeasible()) {
+            std::cout << "No feasible solution to save (status: " << cplex.getCplexStatus() << ")" << std::endl;
+            return;
         }
 
-        /**/ std::cout << "Setting objective" << std::endl; /**/
-        IloExpr expr(env);
-        for(Vertex v : g.vertices())
-            expr += variables[v];
-        model.add(IloMaximize(env,expr));
-    }
-
-    ~Solver() { env.end(); }
-
-    bool solve() {
-        /**/ std::cout << "Solving" << std::endl; /**/
-        cplex.setOut(env.getNullStream()); // Disable console output
-        cplex.setParam(IloCplex::Param::TimeLimit, maxtime); // 60 second time limit
-        return cplex.solve();
-    }
-
-    void save(std::string fn) {
-        /**/ std::cout << "Saving solution" << std::endl; /**/
         std::cout << "Solution is " << cplex.getCplexStatus() << std::endl;
 
-        for(Vertex v : g.vertices()) {
-            if(cplex.getValue(variables[v]) > .5)
+        solution.clear();
+        for (Vertex v : g.vertices()) {
+            if (cplex.getValue(variables[v]) > 0.5)
                 solution.insert(v);
         }
 
         std::ofstream outfile(fn);
-        for(Vertex v : solution) {
+        for (Vertex v : solution) {
             outfile << v << std::endl;
         }
-        std::cout << "Saved a indinating set of size " << solution.size() << std::endl;
+        std::cout << "Saved an independent set of size " << solution.size() << std::endl;
     }
 };

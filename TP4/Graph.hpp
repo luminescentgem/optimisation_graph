@@ -27,7 +27,6 @@ template <class Vertex>
 using Edges = std::unordered_set<Edge<Vertex>, EdgeHash<Vertex>>;
 
 
-
 template<class Vertex>
 class Graph {
   std::unordered_map<Vertex, std::unordered_set<Vertex>> adj;
@@ -36,13 +35,24 @@ public:
   Graph() {
   }  
   
-  Graph(std::string filename) {
+  Graph(std::string filename)
+  {
     std::ifstream infile(filename);
-    Vertex u,v;
-    while(infile >> u >> v) {
-      addEdge(u,v);
+    if (!infile.is_open()) {
+      throw std::runtime_error("Could not open graph file: " + filename);
+    }
+
+    Vertex u, v;
+    while (true) {
+      if (!(infile >> u >> v)) {
+        if (infile.eof()) break;
+        throw std::runtime_error("Malformed line in graph file: " + filename);
+      }
+      if (u == v) continue; // trivial self-loop guard, optional
+      addEdge(u, v);
     }
   }
+
 
   void addVertex(Vertex v) {
     adj[v];
@@ -168,8 +178,8 @@ public:
     return ret;
   }
 
-  Graph fromVertices(const std::vector<Vertex>& vertices) {
-    Graph graph();
+  Graph subGraph(const std::vector<Vertex>& vertices) {
+    Graph graph;
     std::unordered_set v(vertices.begin(), vertices.end());
     
     for (Vertex& u : v) {

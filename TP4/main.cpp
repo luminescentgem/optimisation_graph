@@ -18,10 +18,11 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  /**/ cout << "File " << argv[1] << endl; /**/
   Graph<Vertex> g(argv[1]); // Read input graph
-
+  
   Solver solver(g, maxtime);
-
+  
   solver.solve();
 
   string outfn = argv[1]; // Create filename for output
