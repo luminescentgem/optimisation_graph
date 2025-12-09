@@ -1,0 +1,4 @@
+**/main
+
+instances/
+!instances/*.edges
