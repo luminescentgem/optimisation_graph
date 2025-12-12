@@ -29,7 +29,19 @@ using Edges = std::unordered_set<Edge<Vertex>, EdgeHash<Vertex>>;
 
 template<class Vertex>
 class Graph {
-  std::unordered_map<Vertex, std::unordered_set<Vertex>> adj;
+public:
+  using AdjMap = std::unordered_map<Vertex, std::unordered_set<Vertex>>;
+  using iterator = AdjMap::iterator;
+  using const_iterator = AdjMap::const_iterator;
+
+  iterator begin() { return adj.begin(); }
+  iterator end()   { return adj.end(); }
+
+  const_iterator begin() const { return adj.begin(); }
+  const_iterator end()   const { return adj.end(); }
+
+private:
+  AdjMap adj;
   
 public:
   Graph() {

@@ -68,10 +68,14 @@ public:
         SubSolver solver(subGraph);
 
         trimGraph(solver);
+        removeSubIndependant(solver);
 
         solver.solve();
+
+        addSubIndependant(solver);
     }
 
+private:
     void remove_neighbors_from_queue(std::vector<Vertex>& list, Vertex& v)
     {
         std::erase(
@@ -89,12 +93,29 @@ public:
 
     void trimGraph(SubSolver& solver)
     {
-        
+        // Tricky loop ; deletes its own elements
+        std::erase_if(g.adj, [&](const auto& entry) {
+            const auto& [v, ns] = entry;
+
+            for (const Vertex n : ns) {
+                if (isOutside(g, n) && isIndependant(g, n)) {
+                    return true;   // erase v
+                }
+            }
+            return false;
+        });
     }
 
-    void isOutsideAndIndependant(Graph& subGraph, Vertex v)
+    void removeSubIndependant(SubSolver& solver)
     {
-        return !subGraph.contains(v) && independant.contains(v)
+        std::erase_if(independant, [&](const Vertex& v) {
+            return solver.g.containsVertex(v);
+        });
+    }
+
+    void addSubIndependant(SubSolver& solver)
+    {
+        independant.insert(solver.independant.begin(), solver.independant.end());
     }
 
     void save(std::string fn) const

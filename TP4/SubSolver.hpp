@@ -95,4 +95,6 @@ public:
         }
         std::cout << "Saved an independent set of size " << solution.size() << std::endl;
     }
+
+    friend Solver;
 };
