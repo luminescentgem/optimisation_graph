@@ -194,9 +194,9 @@ public:
     Graph graph;
     std::unordered_set v(vertices.begin(), vertices.end());
     
-    for (Vertex& u : v) {
+    for (const Vertex& u : v) {
       graph.addVertex(u);
-      for (Vertex& n : neighbors(u)) {
+      for (const Vertex& n : neighbors(u)) {
         if (v.contains(n)) {
           graph.addEdge(u, n);
         }

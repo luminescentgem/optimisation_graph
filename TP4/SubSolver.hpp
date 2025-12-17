@@ -8,14 +8,14 @@
 #include <utility>
 #include <string>
 #include <ilcplex/ilocplex.h>
-²²
+
 template <class Vertex>
 using Edge = std::pair<Vertex, Vertex>;
 
 template <class Vertex>
 class SubSolver
 {
-private:
+public:
     Graph<Vertex>& g;
 
     IloEnv env;
@@ -24,19 +24,15 @@ private:
 
     std::unordered_set<Vertex> solution, vertices;
     std::unordered_map<Vertex, IloNumVar> variables;
-    int maxtime;
 
 public:
-    SubSolver(Graph<Vertex> &g, int maxtime)
+    SubSolver(Graph<Vertex> &g)
         : g(g),
           env(),
           model(env),
           cplex(model),
-          maxtime(maxtime)
+          vertices(g.vertices())
     {
-        std::vector<Vertex> _(g.vertices());
-        vertices = std::unordered_set<Vertex>(_.begin(), _.end());
-        
         /**/ std::cout << "Creating variables" << std::endl; /**/
         for (Vertex v : g.vertices())
             variables[v] = IloNumVar(env, 0.0, 1.0, ILOINT);
@@ -57,7 +53,7 @@ public:
         expr.end();
     }
 
-    ~Solver()
+    ~SubSolver()
     {
         cplex.end();
         model.end();
@@ -68,7 +64,7 @@ public:
     {
         /**/ std::cout << "Solving" << std::endl; /**/
         cplex.setOut(env.getNullStream()); // Disable console output
-        cplex.setParam(IloCplex::Param::TimeLimit, maxtime); // 60 second time limit
+        // cplex.setParam(IloCplex::Param::TimeLimit, maxtime);
         return cplex.solve();
     }
 
@@ -95,6 +91,4 @@ public:
         }
         std::cout << "Saved an independent set of size " << solution.size() << std::endl;
     }
-
-    friend Solver;
 };
