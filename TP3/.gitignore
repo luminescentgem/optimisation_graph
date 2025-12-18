@@ -1,5 +1,5 @@
 .vscode/
-**/main
+main
 
 instances/
 !instances/*.edges
