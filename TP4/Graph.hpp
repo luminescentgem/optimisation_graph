@@ -40,7 +40,7 @@ public:
   const_iterator begin() const { return adj.begin(); }
   const_iterator end()   const { return adj.end(); }
 
-private:
+public:
   AdjMap adj;
   
 public:
@@ -202,6 +202,7 @@ public:
         }
       }
     }
+    return graph;
   }
 };
 

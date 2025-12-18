@@ -9,7 +9,7 @@ g++ -o ind-cplex -L/opt/ibm/ILOG/CPLEX_Studio221/cplex/lib/x86-64_linux/static_p
 
 using namespace std;
 using Vertex = long long int;
-double maxtime = 120;
+double maxtime = 20;
 
 int main(int argc, char **argv) {
   if(argc != 2) {
@@ -35,7 +35,10 @@ int main(int argc, char **argv) {
     
     double improved = elapsed();
 
-    while(elapsed() < maxtime && elapsed() - improved < maxtime / 8) {
+    while(elapsed() < maxtime
+          && elapsed() - improved < maxtime / 8
+          && !solver.solved()
+    ) {
       if(solver.improve()) {
         std::cout << " -> " << solver.solution().size() << std::flush;
         improved = elapsed();
@@ -43,7 +46,7 @@ int main(int argc, char **argv) {
       iterations++;
     }
 
-    if(solution.empty() || solver.solution().size() < solution.size())
+    if(solution.empty() || solver.solution().size() > solution.size())
       solution = solver.solution();
     
     std::cout << std::endl
@@ -53,6 +56,13 @@ int main(int argc, char **argv) {
               << " and the best size found is "
               << solution.size()
               << std::endl;
+    
+    if (solver.solved()) {
+      std::cout << std::endl
+                << "Solution is already optimal, stopping early."
+                << std::endl;
+      break;
+    }
   }
 
   string outfn = argv[1]; // Create filename for output

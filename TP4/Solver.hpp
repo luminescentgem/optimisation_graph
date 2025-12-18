@@ -7,6 +7,8 @@
 #include <fstream>
 #include <utility>
 #include <string>
+#include <algorithm>
+
 #include "Graph.hpp"
 #include "SubSolver.hpp"
 #include "tools.hpp"
@@ -14,7 +16,7 @@
 template <class Vertex>
 using Edge = std::pair<Vertex, Vertex>;
 
-constexpr int SUB_GRAPH_MAX_SIZE = 5000;
+constexpr int SUB_GRAPH_MAX_SIZE = 3000;
 
 template <class Vertex>
 class Solver
@@ -22,71 +24,86 @@ class Solver
 private:
     Graph<Vertex>& g;
 
-    std::vector<Vertex> vertices;
     std::unordered_set<Vertex> independant;
+    std::vector<Vertex> vertices, vVerticesToBeChecked;
 
 public:
-    Solver(Graph<Vertex> &_g)
-        : g(_g)
-    {
-        auto _ = g.vertices();
-        vertices = std::vector<Vertex>(_.begin(), _.end());
-    }
-
-    ~Solver()
-    {
-    }
-
-    bool solve()
-    {
-        /**/ std::cout << "Solving" << std::endl; /**/
-        solve_greedy();
-
-        return true; // placeholder
-    }
+    Solver(Graph<Vertex>& _g)
+        : g(_g),
+          independant(),
+          vertices(g.vertices().begin(), g.vertices().end()),
+          vVerticesToBeChecked(vertices)
+    {}
 
     void solve_greedy()
     {
-        /**/ std::cout << "Solving greedy" << std::endl; /**/
+        std::cout << "Solving greedy" << std::endl;
+
         std::vector<Vertex> queue = vertices;
         std::sort(queue.begin(), queue.end(),
-                [this](Vertex& a, Vertex& b) -> int {
-                    return g.degree(a) - g.degree(b);
-                });
-        
-        while(!queue.empty()) {
-            Vertex& v = queue.front();
+            [this](const Vertex& a, const Vertex& b) {
+                return g.degree(a) < g.degree(b);
+            });
+
+        while (!queue.empty()) {
+            Vertex v = queue.front();
 
             independant.insert(v);
-            remove_neighbors_from_queue(queue, v);
+
+            removeNeighborsFromQueue(queue, v);
+
+            // keep "to be checked" in sync
+            auto it = std::find(vVerticesToBeChecked.begin(),
+                                vVerticesToBeChecked.end(), v);
+            if (it != vVerticesToBeChecked.end())
+                vVerticesToBeChecked.erase(it);
         }
     }
 
     bool improve()
     {
-        Vertex randomVertex = pickRandomVertex();
-        Graph subGraph = g.subGraph(
-            g.bfs(randomVertex, SUB_GRAPH_MAX_SIZE)
-        );
-        SubSolver solver(subGraph);
+        if (vVerticesToBeChecked.empty())
+            return false;
 
-        trimGraph(solver);
-        removeSubIndependantIn(solver);
+        Vertex randomVertex = popRandomVertex();
+        auto subVertices = g.bfs(randomVertex, SUB_GRAPH_MAX_SIZE);
+        int score = countSubIndependant(subVertices);
 
-        solver.solve();
+        Graph<Vertex> subGraph = g.subGraph(subVertices);
+        trimGraph(subGraph, subVertices);
 
-        addSubIndependantFrom(solver);
+        SubSolver<Vertex> solver(subGraph);
+        if (!solver.solve())
+            return false;
 
-        return true; // placeholder
+        std::unordered_set<Vertex> subSolution = solver.independant();
+
+        if (solver.optimal()) {
+            checkSubVertices(subVertices);
+        }
+
+        if (countSubIndependant(subSolution) <= score) {
+            return false;
+        }
+
+        removeSubIndependantFrom(solver);
+        addSubIndependant(subSolution);
+        return true;
     }
 
     const std::unordered_set<Vertex>& solution() const
     {
         return independant;
-    } 
+    }
+
+    bool solved() const
+    {
+        return vVerticesToBeChecked.empty();
+    }
 
 private:
-    void remove_neighbors_from_queue(std::vector<Vertex>& list, Vertex& v)
+    void removeNeighborsFromQueue(std::vector<Vertex>& list,
+                                  const Vertex& v) const
     {
         const auto& neighbors = g.closedNeighbors(v);
         std::erase_if(list,
@@ -95,47 +112,82 @@ private:
             });
     }
 
-    Vertex pickRandomVertex() const
+    void checkSubVertices(const std::vector<Vertex>& subVertices)
     {
-        return random_element(vertices);
+        for (const Vertex& v : subVertices) {
+        auto it = std::find(vVerticesToBeChecked.begin(),
+                            vVerticesToBeChecked.end(), v);
+        if (it != vVerticesToBeChecked.end())
+            vVerticesToBeChecked.erase(it);
+    }
     }
 
-    void trimGraph(SubSolver<Vertex>& solver)
+    int countSubIndependant(const std::vector<Vertex>& vs) const
     {
-        // Tricky loop ; deletes its own elements
-        std::erase_if(g.adj, [&](const auto& entry) {
-            const auto& [v, ns] = entry;
+        int count = 0;
+        for (const Vertex& v : vs)
+            if (independant.contains(v))
+                ++count;
+        return count;
+    }
 
-            for (const Vertex n : ns) {
-                if (!g.contains(n) && independant.contains(n)) {
-                    return true;   // erase v
-                }
+    int countSubIndependant(const std::unordered_set<Vertex>& vs) const
+    {
+        int count = 0;
+        for (const Vertex& v : vs)
+            if (independant.contains(v))
+                ++count;
+        return count;
+    }
+
+    Vertex popRandomVertex() const
+    {
+        if (vVerticesToBeChecked.empty())
+            throw std::logic_error("popRandomVertex on empty set");
+
+        Vertex v = random_element(vVerticesToBeChecked);
+        std::erase(vVerticesToBeChecked, v);
+        return v;
+    }
+
+    void trimGraph(Graph<Vertex>& subGraph,
+                   const std::vector<Vertex>& subVertices)
+    {
+        std::unordered_set<Vertex> inSub(subVertices.begin(), subVertices.end());
+
+        std::erase_if(subGraph.adj, [&](const auto& entry) {
+            const Vertex& u = entry.first;
+
+            for (const Vertex& n : g.neighbors(u)) {
+                if (!inSub.contains(n) && independant.contains(n))
+                    return true;
             }
             return false;
         });
     }
 
-    void removeSubIndependantIn(SubSolver<Vertex>& solver)
+    void removeSubIndependantFrom(SubSolver<Vertex>& solver)
     {
         std::erase_if(independant, [&](const Vertex& v) {
             return solver.g.containsVertex(v);
         });
     }
 
-    void addSubIndependantFrom(SubSolver<Vertex>& solver)
+    void addSubIndependant(const std::unordered_set<Vertex>& sol)
     {
-        independant.insert(solver.independant.begin(), solver.independant.end());
+        independant.insert(sol.begin(), sol.end());
     }
 };
 
 // Save the solution to a file
 template <class Vertex>
-void save(const std::string &outfn, std::unordered_set<Vertex> solution)
+void save(const std::string& outfn,
+          const std::unordered_set<Vertex>& solution)
 {
     std::ofstream outfile(outfn);
     for (Vertex v : solution)
-    {
-        outfile << v << std::endl;
-    }
-    std::cout << "Saved a dominating set of size " << solution.size() << std::endl;
+        outfile << v << '\n';
+
+    std::cout << "Saved an independant set of size "
+              << solution.size() << std::endl;
 }

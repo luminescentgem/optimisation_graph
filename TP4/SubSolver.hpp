@@ -33,11 +33,11 @@ public:
           cplex(model),
           vertices(g.vertices())
     {
-        /**/ std::cout << "Creating variables" << std::endl; /**/
+        // /**/ std::cout << "Creating variables" << std::endl; /**/
         for (Vertex v : g.vertices())
             variables[v] = IloNumVar(env, 0.0, 1.0, ILOINT);
 
-        /**/ std::cout << "Creating constraints" << std::endl; /**/
+        // /**/ std::cout << "Creating constraints" << std::endl; /**/
         for (Edge<Vertex> e : g.edges()) {
             IloExpr expr(env);
             expr += variables[e.first] + variables[e.second];
@@ -45,7 +45,7 @@ public:
             expr.end();
         }
 
-        /**/ std::cout << "Setting objective" << std::endl; /**/
+        // /**/ std::cout << "Setting objective" << std::endl; /**/
         IloExpr expr(env);
         for (Vertex v : g.vertices())
             expr += variables[v];
@@ -62,33 +62,32 @@ public:
 
     bool solve()
     {
-        /**/ std::cout << "Solving" << std::endl; /**/
+        // /**/ std::cout << "Solving" << std::endl; /**/
         cplex.setOut(env.getNullStream()); // Disable console output
         // cplex.setParam(IloCplex::Param::TimeLimit, maxtime);
         return cplex.solve();
     }
 
-    void save(std::string fn)
+    bool optimal()
     {
-        /**/ std::cout << "Saving solution" << std::endl; /**/
+        return cplex.getCplexStatus() == IloCplex::Optimal;
+    }
 
+    std::unordered_set<Vertex> independant()
+    {
+        // /**/ std::cout << "Saving solution" << std::endl; /**/
         if (!cplex.isPrimalFeasible()) {
             std::cout << "No feasible solution to save (status: " << cplex.getCplexStatus() << ")" << std::endl;
-            return;
+            return {};
         }
 
-        std::cout << "Solution is " << cplex.getCplexStatus() << std::endl;
-
+        // std::cout << "Solution is " << cplex.getCplexStatus() << std::endl;
         solution.clear();
         for (Vertex v : g.vertices()) {
             if (cplex.getValue(variables[v]) > 0.5)
                 solution.insert(v);
         }
 
-        std::ofstream outfile(fn);
-        for (Vertex v : solution) {
-            outfile << v << std::endl;
-        }
-        std::cout << "Saved an independent set of size " << solution.size() << std::endl;
+        return solution;
     }
 };
